@@ -1,52 +1,60 @@
-"use client"
+"use client";
 
-import type React from "react"
-
-import { useState } from "react"
-import { useRouter } from "next/navigation"
-import { Button } from "@/components/ui/button"
-import { Card } from "@/components/ui/card"
-import { Input } from "@/components/ui/input"
-import { Label } from "@/components/ui/label"
-import { Icons } from "@/components/icons"
-import { getAuth, createUserWithEmailAndPassword, signInWithPopup, GoogleAuthProvider } from "firebase/auth"
-import { app } from "@/firebase/clientApp"
+import type React from "react";
+import { useState } from "react";
+import { useRouter } from "next/navigation";
+import { Button } from "@/components/ui/button";
+import { Card } from "@/components/ui/card";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
+import { Icons } from "@/components/icons";
+import { getAuth, createUserWithEmailAndPassword, signInWithPopup, GoogleAuthProvider } from "firebase/auth";
+import { app } from "@/firebase/clientApp";
+import { createUserDocument } from "@/database/db"; // Import Firestore function
 
 export default function LoginPage() {
-  const [isLoading, setIsLoading] = useState(false)
-  const [email, setEmail] = useState("")
-  const [password, setPassword] = useState("")
-  const router = useRouter()
-  const [error, setError] = useState(null)
-  
-  const auth = getAuth(app)
-  const provider = new GoogleAuthProvider()
+  const [isLoading, setIsLoading] = useState(false);
+  const [email, setEmail] = useState("");
+  const [password, setPassword] = useState("");
+  const [error, setError] = useState<string | null>(null);
+  const router = useRouter();
+
+  const auth = getAuth(app);
+  const provider = new GoogleAuthProvider();
 
   const handleSignup = async (e: React.FormEvent) => {
-    e.preventDefault()
-    setIsLoading(true)
-    
+    e.preventDefault();
+    setIsLoading(true);
+
     try {
-      await createUserWithEmailAndPassword(auth, email, password)
-      router.push("/dashboard")
+      const userCredential = await createUserWithEmailAndPassword(auth, email, password);
+      const user = userCredential.user;
+
+      await createUserDocument(user); // 🔥 Store user in Firestore
+
+      router.push("/dashboard");
     } catch (error: any) {
-      setError(error.message)
+      setError(error.message);
     } finally {
-      setIsLoading(false)
+      setIsLoading(false);
     }
-  }
+  };
 
   const handleGoogleSignIn = async () => {
-    setIsLoading(true)
+    setIsLoading(true);
     try {
-      await signInWithPopup(auth, provider)
-      router.push("/dashboard")
+      const result = await signInWithPopup(auth, provider);
+      const user = result.user;
+
+      await createUserDocument(user); // 🔥 Store user in Firestore
+
+      router.push("/dashboard");
     } catch (error: any) {
-      setError(error.message)
+      setError(error.message);
     } finally {
-      setIsLoading(false)
+      setIsLoading(false);
     }
-  }
+  };
 
   return (
     <div className="container flex items-center justify-center min-h-screen py-12 bg-gradient-to-b from-accent via-background to-background">
@@ -88,5 +96,5 @@ export default function LoginPage() {
         </Button>
       </Card>
     </div>
-  )
+  );
 }

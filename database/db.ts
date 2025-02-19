@@ -1,33 +1,32 @@
-import { getFirestore, doc, setDoc } from "firebase/firestore";
-import { getAuth, onAuthStateChanged } from "firebase/auth";
-import { app } from "@/firebase/clientApp"; // Import Firebase App
+import { getFirestore, doc, getDoc, setDoc } from "firebase/firestore";
+import { app } from "@/firebase/clientApp";
 
 const db = getFirestore(app);
-const auth = getAuth(app);
 
-async function createUserDocument(user: any) {
+export async function createUserDocument(user: any) {
   if (!user) return;
 
-  const userRef = doc(db, "user", user.uid); // Use UID as document ID
-  
-  
-  const userData = {
-    name: user.displayName || "User",
-    email: user.email,
-    createdAt: new Date(),
-  };
+  const userRef = doc(db, "users", user.uid); // 🔥 Store user in "users" collection
 
   try {
-    await setDoc(userRef, userData, { merge: true }); // Prevent overwriting existing fields
-    console.log("User document created successfully!");
+    const userSnapshot = await getDoc(userRef);
+
+    if (!userSnapshot.exists()) {
+      // 🔥 Only create document if it doesn't exist
+      const userData = {
+        name: user.displayName || "User",
+        email: user.email,
+        createdAt: new Date(),
+        level: 1, // Default level for new users
+        xp: 0, // Default XP
+      };
+
+      await setDoc(userRef, userData);
+      console.log("User document created successfully!");
+    } else {
+      console.log("User document already exists!");
+    }
   } catch (error) {
     console.error("Error creating user document:", error);
   }
 }
-
-// Automatically create a user document when they log in
-onAuthStateChanged(auth, (user) => {
-  if (user) {
-    createUserDocument(user);
-  }
-});
