@@ -1,6 +1,12 @@
 "use client";
+
 import { useState, useEffect } from "react";
-import { getFirestore, doc, getDoc, setDoc, updateDoc } from "firebase/firestore";
+import {
+  getFirestore,
+  doc,
+  getDoc,
+  updateDoc,
+} from "firebase/firestore";
 import { getAuth, onAuthStateChanged } from "firebase/auth";
 import { app } from "@/firebase/clientApp";
 import { Card } from "@/components/ui/card";
@@ -15,6 +21,7 @@ const auth = getAuth(app);
 export default function ProfilePage() {
   const [user, setUser] = useState<any>(null);
   const [userData, setUserData] = useState<any>(null);
+  const [userXP, setUserXP] = useState<number>(0);
   const [loading, setLoading] = useState(true);
   const [isEditing, setIsEditing] = useState(false);
   const [newName, setNewName] = useState("");
@@ -23,28 +30,12 @@ export default function ProfilePage() {
     const unsubscribe = onAuthStateChanged(auth, async (user) => {
       if (user) {
         setUser(user);
-
-        const userRef = doc(db, "users", user.uid);
-        const docSnap = await getDoc(userRef);
-
-        if (docSnap.exists()) {
-          console.log("User Data:", docSnap.data());
-          setUserData(docSnap.data());
-        } else {
-          console.warn("No user document found! Creating one...");
-          const defaultData = {
-            name: user.displayName || "User",
-            email: user.email,
-            xp: 0, // Default XP value
-            createdAt: new Date(),
-          };
-
-          await setDoc(userRef, defaultData);
-          setUserData(defaultData);
-        }
+        await fetchUserData(user.uid);
+        await fetchUserXP(user.uid);
       } else {
         setUser(null);
         setUserData(null);
+        setUserXP(0);
       }
       setLoading(false);
     });
@@ -52,14 +43,48 @@ export default function ProfilePage() {
     return () => unsubscribe();
   }, []);
 
-  // Function to update the user's name
+  // ✅ Fetch user profile data (name, email) from Firestore (`users` collection)
+  const fetchUserData = async (userId: string) => {
+    try {
+      const userRef = doc(db, "users", userId);
+      const docSnap = await getDoc(userRef);
+
+      if (docSnap.exists()) {
+        setUserData(docSnap.data());
+      } else {
+        console.warn("No user document found!");
+      }
+    } catch (error) {
+      console.error("Error fetching user data:", error);
+    }
+  };
+
+  // ✅ Fetch only XP from `user_workouts` collection
+  const fetchUserXP = async (userId: string) => {
+    try {
+      const userWorkoutsRef = doc(db, "user_workouts", userId);
+      const docSnap = await getDoc(userWorkoutsRef);
+
+      if (docSnap.exists()) {
+        setUserXP(docSnap.data().xp || 0);
+      } else {
+        console.warn("No workout XP data found!");
+        setUserXP(0);
+      }
+    } catch (error) {
+      console.error("Error fetching XP:", error);
+    }
+  };
+
+  // ✅ Update the user's name in Firestore
   const handleUpdateName = async () => {
     if (!newName.trim() || !user) return;
 
     try {
       const userRef = doc(db, "users", user.uid);
       await updateDoc(userRef, { name: newName });
-      setUserData((prev: any) => ({ ...prev, name: newName }));
+
+      setUserData((prev: any) => ({ ...prev, name: newName })); // Update UI
       setIsEditing(false);
       console.log("User name updated successfully!");
     } catch (error) {
@@ -84,9 +109,10 @@ export default function ProfilePage() {
           <h2 className="text-2xl font-semibold mt-4">{userData?.name || "User"}</h2>
           <p className="text-muted-foreground">{user?.email || "No email found"}</p>
 
+          {/* XP Display (Fetched Separately) */}
           <div className="mt-4 p-4 border rounded-lg bg-accent">
             <h3 className="text-lg font-semibold">Total XP</h3>
-            <p className="text-xl font-bold text-primary">{userData?.xp || 0}</p>
+            <p className="text-xl font-bold text-primary">{userXP}</p>
           </div>
 
           {/* Edit Profile Button */}

@@ -1,4 +1,4 @@
-'use client';
+"use client";
 import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import { getAuth, onAuthStateChanged } from "firebase/auth";
@@ -16,27 +16,65 @@ const db = getFirestore(app);
 export default function Dashboard() {
   const router = useRouter();
   const [userData, setUserData] = useState<any>(null);
+  const [totalXP, setTotalXP] = useState<number>(0);
+  const [level, setLevel] = useState<number>(1);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
     const unsubscribe = onAuthStateChanged(auth, async (user) => {
       if (user) {
-        const userRef = doc(db, "users", user.uid);
-        const docSnap = await getDoc(userRef);
-
-        if (docSnap.exists()) {
-          setUserData(docSnap.data());
-        } else {
-          console.error("No user data found!");
-        }
+        await fetchUserData(user.uid);
+        await fetchUserXP(user.uid);
       } else {
         setUserData(null);
+        setTotalXP(0);
+        setLevel(1);
       }
       setLoading(false);
     });
 
     return () => unsubscribe();
   }, []);
+
+  // ✅ Fetch user profile data
+  const fetchUserData = async (userId: string) => {
+    try {
+      const userRef = doc(db, "users", userId);
+      const docSnap = await getDoc(userRef);
+
+      if (docSnap.exists()) {
+        setUserData(docSnap.data());
+      } else {
+        console.error("No user data found!");
+      }
+    } catch (error) {
+      console.error("Error fetching user data:", error);
+    }
+  };
+
+  // ✅ Fetch total XP from Firestore & calculate level
+  const fetchUserXP = async (userId: string) => {
+    try {
+      console.log("Fetching XP for user:", userId);
+      const userWorkoutsRef = doc(db, "user_workouts", userId);
+      const docSnap = await getDoc(userWorkoutsRef);
+
+      if (docSnap.exists()) {
+        const data = docSnap.data();
+        console.log("Workout data:", data);
+
+        const xp = data.xp || 0; // Get XP directly from Firestore
+        setTotalXP(xp);
+        setLevel(Math.floor(xp / 120) + 1); // 1 level per 120 XP
+      } else {
+        console.warn("No workout data found for user!");
+        setTotalXP(0);
+        setLevel(1);
+      }
+    } catch (error) {
+      console.error("Error fetching XP:", error);
+    }
+  };
 
   if (loading) {
     return (
@@ -45,6 +83,9 @@ export default function Dashboard() {
       </div>
     );
   }
+
+  const xpToNextLevel = 120;
+  const xpProgress = (totalXP % xpToNextLevel) / xpToNextLevel * 100;
 
   return (
     <div className="min-h-screen bg-gradient-to-b from-accent via-background to-background">
@@ -59,7 +100,7 @@ export default function Dashboard() {
               <h2 className="font-semibold text-primary">
                 {userData?.fullName || "Your Fitness Buddy"}
               </h2>
-              <p className="text-sm text-muted-foreground">Level 1</p>
+              <p className="text-sm text-muted-foreground">Level {level}</p>
             </div>
           </Card>
 
@@ -67,9 +108,9 @@ export default function Dashboard() {
             <div className="space-y-2">
               <div className="flex justify-between text-primary">
                 <h3 className="font-semibold">Current XP</h3>
-                <span>50/100 XP</span>
+                <span>{totalXP % xpToNextLevel}/{xpToNextLevel} XP</span>
               </div>
-              <Progress value={60} className="h-3 bg-accent" />
+              <Progress value={xpProgress} className="h-3 bg-accent" />
             </div>
                 
             <div className="flex gap-4">
@@ -82,7 +123,7 @@ export default function Dashboard() {
               <Card className="p-4 flex-1 border-accent/20 shadow-lg">
                 <div className="text-center">
                   <div className="text-2xl font-bold text-secondary">
-                    {userData?.totalXP || 0}
+                    {totalXP}
                   </div>
                   <div className="text-sm text-muted-foreground">Total XP</div>
                 </div>
